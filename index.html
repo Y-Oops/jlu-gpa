@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>吉林大学-绩点计算器</title>
+    <link rel="shortcut icon" href="jd.gif">
+    <script src="xlsx.full.min.js"></script>
+    <script src="jquery.min.js"></script>
+    <script src="lightbox/js/lightbox.js"></script>
+    <link rel="stylesheet" href="lightbox/css/lightbox.css">
+    <link href="bootstrap.min.css" rel="stylesheet">
+    <script src="bootstrap.bundle.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            margin: 20px;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        h2 {
+            color: #3A5DAE;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            overflow: auto; /* Enable vertical scrolling */
+            max-height: 70vh; /* Set a max height */
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #3A5DAE;
+            color: #fff;
+        }
+
+        button {
+            padding: 12px;
+            background-color: #3A5DAE;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            display: inline-block;
+            margin: 10px;
+        }
+
+        button:hover {
+            background-color: #3A5DAE;
+        }
+
+        textarea {
+            width: calc(100% - 24px);
+            margin-top: 10px;
+            padding: 12px;
+            resize: none;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        input[type="number"], input[type="text"] {
+            width: calc(100% - 16px);
+            padding: 8px;
+            margin-bottom: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 12px;
+            background-color: #3A5DAE;
+            color: #fff;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .file-input-label:hover {
+            background-color: #3A5DAE;
+        }
+
+        #result, #average, #all_credits {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <img src="jd.gif" alt="吉林大学网址导航" width="75px" class="header-image">
+    <h2>吉林大学<br>绩点计算器v1.0</h2>
+    <h3>本项目承诺不对任何数据进行上传服务器或云端处理，所有数据处理均在本地进行</h3>
+    <!-- <h2>绩点计算器</h2> -->
+    <a>点击图片查看本科生成绩单相关说明👇</a><br>
+    <a href="jdjwc.jpg" data-lightbox="e1" data-title="吉林大学学分-成绩-绩点换算规则"><img src="jdjwc.jpg" width="100"></a>
+    <table id="courseTable">
+        <thead>
+            <tr>
+                <th>课程名称</th>
+                <th>分数</th>
+                <th>学分</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Course rows will be added dynamically here -->
+        </tbody>
+    </table>
+    <button onclick="calculateGPA()">计算绩点</button>
+
+    <h2 id="all_credits">学分：--</h2>
+    <h2 id="result">绩点：--</h2>
+    <h2 id="average">均分：--</h2>
+    
+    <!-- <textarea id="importExport" placeholder="粘贴或导入课程信息"></textarea> -->
+    <div class="alert alert-success" style="width: 100%;text-align: center;">
+    <p>方式1（手动导入课程）</p>
+    <button onclick="addCourse()">添加课程</button>
+    </div>
+    <div class="alert alert-warning" style="width: 100%;text-align: center;">
+    <a>方式2（批量导入课程）</a>
+    <p>step1：在<a href="https://iedu.jlu.edu.cn">吉林大学教务网站(https://iedu.jlu.edu.cn，点击访问)</a>导出全部课程成绩excel表格（点击下图查看）<br>
+        <a href="jwxtczz.jpg" data-lightbox="e1" data-title="教务系统导出操作"><img src="jwxtczz.jpg" width="100"></a>
+        <br>
+        step2：删去不需要计算的课程的行后，保持其他列不变，点击下面选择文件进行上传</p>
+    <label for="fileInput" class="file-input-label">选择文件</label>
+    <input type="file" id="fileInput" accept=".json,.xlsx" onchange="importCourses(event)">
+</div>
+    <button onclick="exportCourses()">导出课程</button>
+    <div style="text-align: center;">
+        版权所有 © www.jluer.cn-chuci
+        <br>感谢东南大学计软智的灵感
+    </div>
+
+    <script>
+        function addCourse() {
+            var table = document.getElementById("courseTable").getElementsByTagName('tbody')[0];
+            var row = table.insertRow(table.rows.length);
+
+            var cell1 = row.insertCell(0);
+            var cell2 = row.insertCell(1);
+            var cell3 = row.insertCell(2);
+            var cell4 = row.insertCell(3);
+
+            cell1.innerHTML = '<input type="text" placeholder="课程名称">';
+            cell2.innerHTML = '<input type="number" placeholder="分数" min="0" max="100">';
+            cell3.innerHTML = '<input type="number" placeholder="学分" min="0">';
+            cell4.innerHTML = '<button onclick="removeCourse(this)">删除</button>';
+        }
+
+        function removeCourse(button) {
+            var row = button.parentNode.parentNode;
+            row.parentNode.removeChild(row);
+        }
+
+        function calculateGPA() {
+            var table = document.getElementById("courseTable").getElementsByTagName('tbody')[0];
+            var rows = table.getElementsByTagName('tr');
+            var totalPoints = 0;
+            var totalCredits = 0;
+
+            for (var i = 0; i < rows.length; i++) {
+                var cells = rows[i].getElementsByTagName('td');
+                var score = parseFloat(cells[1].getElementsByTagName('input')[0].value);
+                var credits = parseFloat(cells[2].getElementsByTagName('input')[0].value);
+
+                if (!isNaN(score) && !isNaN(credits)) {
+                    totalPoints += calculatePoints(score) * credits;
+                    totalCredits += credits;
+                }
+            }
+
+            var gpa = totalCredits !== 0 ? totalPoints / totalCredits : 0;
+            var average = calculateAverage(rows);
+
+            document.getElementById("result").innerHTML = "绩点：" + gpa.toFixed(2);
+            document.getElementById("average").innerHTML = "均分：" + average.toFixed(2);
+            document.getElementById("all_credits").innerHTML="学分："+ totalCredits;
+        }
+
+        function calculatePoints(score) {
+            if (score >= 90) {
+                return 4.0;
+            } else if (score >= 87) {
+                return 3.7;
+            } else if (score >= 84) {
+                return 3.3;
+            } else if (score >= 80) {
+                return 3.0;
+            } else if (score >= 77) {
+                return 2.7;
+            } else if (score >= 74) {
+                return 2.3;
+            } else if (score >= 70) {
+                return 2.0;
+            } else if (score >= 67) {
+                return 1.7;
+            } else if (score >= 64) {
+                return 1.3;
+            } else if (score >= 60) {
+                return 1.0;
+            } else if (score == "A+") {
+                return 4.0;
+            } else if (score == "A") {
+                return 4.0;
+            } else if (score == "A-") {
+                return 3.7;
+            } else if (score == "B+") {
+                return 3.7;
+            } else if (score == "B") {
+                return 3.0;
+            } else if (score == "B-") {
+                return 2.7;
+            } else if (score == "C+") {
+                return 2.3;
+            } else if (score == "C") {
+                return 2.0;
+            } else if (score == "C-") {
+                return 1.7;
+            } else if (score == "D+") {
+                return 1.3;
+            } else if (score == "D") {
+                return 1.0;
+            } else {
+                return 0;
+            }
+        }
+
+        function calculateAverage(rows) {
+            var totalScore = 0;
+            var totalCredits = 0;
+
+            for (var i = 0; i < rows.length; i++) {
+                var cells = rows[i].getElementsByTagName('td');
+                var score = parseFloat(cells[1].getElementsByTagName('input')[0].value);
+                var credits = parseFloat(cells[2].getElementsByTagName('input')[0].value);
+
+                if (!isNaN(score) && !isNaN(credits)) {
+                    totalScore += score * credits;
+                    totalCredits += credits;
+                }
+            }
+
+            var average = totalCredits !== 0 ? totalScore / totalCredits : 0;
+            return average;
+        }
+
+        function importCourses(event) {
+            var fileInput = event.target;
+            var file = fileInput.files[0];
+            let filename_upload_name = file.name;
+            let filename_upload_list = filename_upload_name.split(".")
+            let filename_upload_last = filename_upload_list.at(-1)
+            let filename_upload_first =  filename_upload_list.at(0)
+            if(filename_upload_last=="json"){
+                if (file) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var courseData = e.target.result;
+                    try {
+                        var parsedData = JSON.parse(courseData);
+                        if (Array.isArray(parsedData)) {
+                            clearTable();
+                            for (var i = 0; i < parsedData.length; i++) {
+                                addImportedCourse(parsedData[i]);
+                            }
+                        } else {
+                            alert("导入的数据格式不正确");
+                        }
+                    } catch (error) {
+                        alert("导入的数据格式不正确");
+                    }
+                };
+                reader.readAsText(file);
+            }
+            }
+            else if(filename_upload_last=="xlsx"){
+                // 判断是教务的哪种导出格式
+                if(filename_upload_first.indexOf("最近两学期")>-1){
+                    // 解析excel
+                const reader = new FileReader();
+                reader.readAsArrayBuffer(file);
+                // 定义一个加载完成的回调，在 FileReader 完成文件读取操作后被调用。
+                reader.onload = (event) => {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: "array" });
+
+                    // 获取工作表名数组
+                    const sheetNameArray = workbook.SheetNames;
+                    // 获取第一个工作表
+                    const firstSheet = workbook.Sheets[sheetNameArray[0]];
+                    // 将工作表转换为二维数组
+                    const sheetDataArray = XLSX.utils.sheet_to_json(firstSheet, {
+                        // defval: "" // 配置这个得到对象数组的格式
+                        header: 1 // 得到二维数组
+                    });
+                    console.log(sheetDataArray);
+                    // 获取想要的列自动加入表格
+                    let sheetDataArray_width = sheetDataArray[0].length
+                    let sheetDataArray_height = sheetDataArray.length
+                    let sheetDataArray_find = ['课程名','总成绩','学分']
+                    let c_score_list = ['优秀','良好','中等','及格','不及格']
+                    clearTable();
+                    for(let i = 1; i<sheetDataArray_height;i++){
+                        let c_name = sheetDataArray[i][1]
+                        let c_score = sheetDataArray[i][3]
+                        let c_credits = sheetDataArray[i][8]
+                        let c_gpa = sheetDataArray[i][13]
+                        if (c_score_list.indexOf(c_score)>-1) {
+                            c_score=graded_score(c_gpa)
+                        }
+                        let course = {"name": c_name,"score":c_score,"credits":c_credits};
+                        addImportedCourse(course);
+                    }
+                };
+                }else if(filename_upload_first.indexOf("全部成绩")>-1){
+                    // 解析excel
+                const reader = new FileReader();
+                reader.readAsArrayBuffer(file);
+                // 定义一个加载完成的回调，在 FileReader 完成文件读取操作后被调用。
+                reader.onload = (event) => {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: "array" });
+
+                    // 获取工作表名数组
+                    const sheetNameArray = workbook.SheetNames;
+                    // 获取第一个工作表
+                    const firstSheet = workbook.Sheets[sheetNameArray[0]];
+                    // 将工作表转换为二维数组
+                    const sheetDataArray = XLSX.utils.sheet_to_json(firstSheet, {
+                        // defval: "" // 配置这个得到对象数组的格式
+                        header: 1 // 得到二维数组
+                    });
+                    console.log(sheetDataArray);
+                    // 获取想要的列自动加入表格
+                    let sheetDataArray_width = sheetDataArray[0].length
+                    let sheetDataArray_height = sheetDataArray.length
+                    let sheetDataArray_find = ['课程名','总成绩','学分']
+                    let c_score_list = ['优秀','良好','中等','及格','不及格']
+                    clearTable();
+                    for(let i = 1; i<sheetDataArray_height;i++){
+                        let c_name = sheetDataArray[i][2]
+                        let c_score = sheetDataArray[i][3]
+                        let c_credits = sheetDataArray[i][8]
+                        let c_gpa = sheetDataArray[i][13]
+                        if (c_score_list.indexOf(c_score)>-1) {
+                            c_score=graded_score(c_gpa)
+                        }
+                        let course = {"name": c_name,"score":c_score,"credits":c_credits};
+                        addImportedCourse(course);
+                    }
+                };
+                }
+                else{
+                    alert("文件名称有误，请勿修改导出后的文件名称")
+                }
+                
+            }
+            else{
+                alert("导入的格式不正确");
+            }
+            
+        }
+        
+        function graded_score(score){
+            if (score >= 4.0) {
+                return 90;
+            } else if (score >= 3.7) {
+                return 87;
+            } else if (score >= 3.3) {
+                return 84;
+            } else if (score >= 3.0) {
+                return 80;
+            } else if (score >= 2.7) {
+                return 77;
+            } else if (score >= 2.3) {
+                return 74;
+            } else if (score >= 2.0) {
+                return 70;
+            } else if (score >= 1.7) {
+                return 67;
+            } else if (score >= 1.3) {
+                return 64;
+            } else if (score >= 1.0) {
+                return 60;
+            } else {
+                return 0;
+            }
+        }
+
+
+
+        function addImportedCourse(course) {
+            var table = document.getElementById("courseTable").getElementsByTagName('tbody')[0];
+            var row = table.insertRow(table.rows.length);
+
+            var cell1 = row.insertCell(0);
+            var cell2 = row.insertCell(1);
+            var cell3 = row.insertCell(2);
+            var cell4 = row.insertCell(3);
+
+            if(course.score<60){
+                course_score_check='<input style="background-color:red" type="number" value="' + (course.score || "") + '" min="0" max="100">'
+            }
+            else{
+                course_score_check='<input style="background-color:green" type="number" value="' + (course.score || "") + '" min="0" max="100">'
+            }
+
+            cell1.innerHTML = '<input type="text" value="' + (course.name || "") + '">';
+            cell2.innerHTML = course_score_check;
+            cell3.innerHTML = '<input type="number" value="' + (course.credits || "") + '" min="0">';
+            cell4.innerHTML = '<button onclick="removeCourse(this)">删除</button>';
+        }
+
+        function exportCourses() {
+            var table = document.getElementById("courseTable").getElementsByTagName('tbody')[0];
+            var rows = table.getElementsByTagName('tr');
+            var exportData = [];
+
+            for (var i = 0; i < rows.length; i++) {
+                var cells = rows[i].getElementsByTagName('td');
+                var course = {
+                    name: cells[0].getElementsByTagName('input')[0].value,
+                    score: cells[1].getElementsByTagName('input')[0].value,
+                    credits: cells[2].getElementsByTagName('input')[0].value,
+                };
+                exportData.push(course);
+            }
+
+            download(JSON.stringify(exportData, null, 2), 'courses.json', 'application/json');
+        }
+
+        function clearTable() {
+            var table = document.getElementById("courseTable").getElementsByTagName('tbody')[0];
+            table.innerHTML = "";
+        }
+
+        function download(content, fileName, contentType) {
+            var a = document.createElement("a");
+            var file = new Blob([content], { type: contentType });
+            a.href = URL.createObjectURL(file);
+            a.download = fileName;
+            a.click();
+        }
+    </script>
+
+</body>
+</html>
